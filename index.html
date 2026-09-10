@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RouteLedger | LR Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">R</div>
+        <div>
+          <div class="brand-name">RouteLedger</div>
+          <div class="brand-subtitle">Logistics control desk</div>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Main navigation">
+        <a class="nav-item active" data-view="dashboard" href="#dashboard"><span class="nav-icon">⌂</span> Overview</a>
+        <a class="nav-item" data-view="create" href="#create"><span class="nav-icon">＋</span> Create LR</a>
+        <a class="nav-item" data-view="history" href="#recent"><span class="nav-icon">↺</span> LR history <span class="nav-count" id="recentCount">0</span></a>
+        <a class="nav-item" data-view="customers" href="#master"><span class="nav-icon">▦</span> Master</a>
+        <a class="nav-item" data-view="settings" href="#settings"><span class="nav-icon">⚙</span> Settings</a>
+      </nav>
+
+      <div class="sidebar-note">
+        <div class="note-icon">i</div>
+        <div>
+          <strong>Ready to dispatch?</strong>
+          <p>Complete the LR and use Print / PDF to share a signed copy.</p>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <span class="status-dot"></span>
+        Local workspace
+        <span class="footer-version">v1.0</span>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">OPERATIONS / WAYBILLING</div>
+          <h1 id="pageTitle">Operations overview</h1>
+          <p class="page-intro" id="pageIntro">A clear view of dispatch activity, customers and fleet readiness.</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="button button-ghost" id="clearForm" type="button">Clear form</button>
+          <button class="button button-primary" id="printButton" type="button"><span>↗</span> Print / PDF</button>
+        </div>
+      </header>
+
+      <section class="view-panel active-view" id="dashboard" data-panel="dashboard">
+        <div class="dashboard-hero"><div><span class="eyebrow">TODAY'S CONTROL DESK</span><h2>Move every load with confidence.</h2><p>Track your latest receipts, customer records and fleet availability from one workspace.</p></div><button class="button button-primary" type="button" data-go-view="create">＋ Create new LR</button></div>
+        <div class="kpi-grid">
+          <div class="kpi-card"><span class="kpi-icon teal">↗</span><div><small>Generated LRs</small><strong id="kpiTotal">0</strong><span id="kpiTotalMeta">All time</span></div></div>
+          <div class="kpi-card"><span class="kpi-icon orange">◷</span><div><small>This month</small><strong id="kpiMonth">0</strong><span>Dispatch documents</span></div></div>
+          <div class="kpi-card"><span class="kpi-icon blue">♧</span><div><small>Customers</small><strong id="kpiCustomers">0</strong><span>Active master records</span></div></div>
+          <div class="kpi-card"><span class="kpi-icon purple">▣</span><div><small>Fleet records</small><strong id="kpiFleet">0</strong><span>Vehicles & drivers</span></div></div>
+        </div>
+        <div class="dashboard-grid"><div class="panel-card"><div class="panel-heading"><div><span class="eyebrow">LATEST ACTIVITY</span><h3>Recent LRs</h3></div><button class="text-button" data-go-view="history" type="button">View all →</button></div><div id="dashboardRecent" class="compact-list"></div></div><div class="panel-card"><div class="panel-heading"><div><span class="eyebrow">QUICK ACTIONS</span><h3>Workspace shortcuts</h3></div></div><div class="shortcut-grid"><button data-go-view="create" type="button"><b>＋</b><span><strong>New LR</strong><small>Start a dispatch document</small></span></button><button data-go-view="customers" type="button"><b>♧</b><span><strong>Add customer</strong><small>Keep party details ready</small></span></button><button data-go-view="fleet" type="button"><b>▣</b><span><strong>Add vehicle</strong><small>Manage drivers and equipment</small></span></button><button data-go-view="settings" type="button"><b>⚙</b><span><strong>Company settings</strong><small>Update profile defaults</small></span></button></div></div></div>
+      </section>
+
+      <section class="view-panel" id="create" data-panel="create">
+      <div class="workspace-grid">
+        <section class="form-column">
+          <form id="lrForm">
+            <div class="section-card">
+              <div class="section-heading">
+                <div>
+                  <span class="section-number">01</span>
+                  <h2>LR & route details</h2>
+                </div>
+                <span class="required-hint">* Required</span>
+              </div>
+              <div class="form-grid three">
+                <label class="field">
+                  <span>LR number <b>*</b></span>
+                  <input id="lrNumber" name="lrNumber" required />
+                </label>
+                <label class="field">
+                  <span>LR date <b>*</b></span>
+                  <input id="lrDate" name="lrDate" type="date" required />
+                </label>
+                <label class="field">
+                  <span>Consignor / billing party <b>*</b></span>
+                  <select id="consignor" name="consignor" required>
+                    <option value="">Select a saved consignor</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Consignee <b>*</b></span>
+                  <select id="consignee" name="consignee" required>
+                    <option value="">Select a saved consignee</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Consignor address <b>*</b></span>
+                  <textarea id="consignorAddress" name="consignorAddress" required rows="2" placeholder="Full registered address"></textarea>
+                </label>
+                <label class="field">
+                  <span>Consignee address <b>*</b></span>
+                  <textarea id="consigneeAddress" name="consigneeAddress" required rows="2" placeholder="Full delivery address"></textarea>
+                </label>
+                <label class="field">
+                  <span>Consignor GST number</span>
+                  <input id="consignorGst" name="consignorGst" placeholder="e.g. 27ABCDE1234F1Z5" />
+                </label>
+                <label class="field">
+                  <span>Consignee GST number</span>
+                  <input id="consigneeGst" name="consigneeGst" placeholder="e.g. 27ABCDE1234F1Z5" />
+                </label>
+                <label class="field">
+                  <span>Consignor PAN number</span>
+                  <input id="consignorPan" name="consignorPan" placeholder="e.g. ABCDE1234F" />
+                </label>
+                <label class="field">
+                  <span>Consignee PAN number</span>
+                  <input id="consigneePan" name="consigneePan" placeholder="e.g. ABCDE1234F" />
+                </label>
+                <label class="field">
+                  <span>From / loading location <b>*</b></span>
+                  <select id="pickup" name="pickup" required>
+                    <option value="">Select a saved loading location</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>To / delivery location <b>*</b></span>
+                  <select id="delivery" name="delivery" required>
+                    <option value="">Select a saved delivery location</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid two route-options">
+                <label class="field">
+                  <span>Movement type</span>
+                  <select id="movementType" name="movementType">
+                    <option value="one-way">One way</option>
+                    <option value="return">Return trip</option>
+                  </select>
+                </label>
+                <label class="field return-location-field" id="returnLocationField">
+                  <span>Return location</span>
+                  <input id="returnLocation" name="returnLocation" placeholder="Return destination, if applicable" />
+                </label>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-heading">
+                <div>
+                  <span class="section-number">02</span>
+                  <h2>Vehicle & cargo</h2>
+                </div>
+              </div>
+              <div class="choice-label">Equipment category</div>
+              <div class="equipment-grid">
+                <label class="equipment-option selected">
+                  <input type="radio" name="equipment" value="20ft-container" checked />
+                  <span class="equipment-icon">20</span>
+                  <span><strong>20 ft container</strong><small>Standard container</small></span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="40ft-container" />
+                  <span class="equipment-icon wide">40</span>
+                  <span><strong>40 ft container</strong><small>High cube / standard</small></span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="20ft-empty-tank" />
+                  <span class="equipment-icon tank">◯</span>
+                  <span><strong>20 ft empty tank</strong><small>Tank container</small></span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="20ft-loaded-tank" />
+                  <span class="equipment-icon tank filled">◉</span>
+                  <span><strong>20 ft loaded tank</strong><small>Tank container</small></span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="16tyre-trailer" />
+                  <span class="equipment-icon tyres">16</span>
+                  <span><strong>16 tyre trailer</strong><small>Break bulk cargo</small></span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="14tyre-trailer" />
+                  <span class="equipment-icon tyres">14</span>
+                  <span><strong>14 tyre trailer</strong><small>Break bulk cargo</small></span>
+                </label>
+                <label class="equipment-option">
+                  <input type="radio" name="equipment" value="truck" />
+                  <span class="equipment-icon truck">▰</span>
+                  <span><strong>Cargo truck</strong><small>General cargo</small></span>
+                </label>
+              </div>
+              <div class="form-grid three vehicle-fields">
+                <label class="field">
+                  <span>Truck / vehicle number <b>*</b></span>
+                  <select id="vehicleNumber" name="vehicleNumber" required>
+                    <option value="">Select a saved vehicle</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Driver name</span>
+                  <input id="driverName" name="driverName" placeholder="Full name" />
+                </label>
+                <label class="field">
+                  <span>Driver mobile</span>
+                  <input id="driverMobile" name="driverMobile" type="tel" placeholder="+91 98765 43210" />
+                </label>
+              </div>
+              <div class="form-grid three">
+                <label class="field">
+                  <span>Cargo / commodity <b>*</b></span>
+                  <input id="commodity" name="commodity" required placeholder="Description of goods" />
+                </label>
+                <label class="field">
+                  <span>Packages / units</span>
+                  <input id="packages" name="packages" placeholder="e.g. 24 bags" />
+                </label>
+                <label class="field">
+                  <span>Value of goods</span>
+                  <div class="input-with-prefix"><span>₹</span><input id="goodsValue" name="goodsValue" type="number" min="0" step="1" placeholder="0" /></div>
+                </label>
+              </div>
+              <div class="form-grid four">
+                <label class="field">
+                  <span>Gross weight</span>
+                  <div class="input-with-unit"><input id="grossWeight" name="grossWeight" type="number" min="0" step="0.01" placeholder="0.00" /><span>MT</span></div>
+                </label>
+                <label class="field">
+                  <span>Net weight</span>
+                  <div class="input-with-unit"><input id="netWeight" name="netWeight" type="number" min="0" step="0.01" placeholder="0.00" /><span>MT</span></div>
+                </label>
+                <label class="field">
+                  <span>Tare weight</span>
+                  <div class="input-with-unit"><input id="tareWeight" name="tareWeight" type="number" min="0" step="0.01" placeholder="0.00" /><span>MT</span></div>
+                </label>
+                <label class="field">
+                  <span>Description of goods</span>
+                  <input id="goodsDescription" name="goodsDescription" placeholder="Detailed goods description" />
+                </label>
+              </div>
+              <div class="form-grid two">
+                <label class="field">
+                  <span>Container / tank number 1</span>
+                  <input id="containerNumber1" name="containerNumber1" placeholder="e.g. TGHU 1234567" />
+                </label>
+                <label class="field">
+                  <span>Container / tank number 2</span>
+                  <input id="containerNumber2" name="containerNumber2" placeholder="Optional second container" />
+                </label>
+              </div>
+              <div class="form-grid two">
+                <label class="field">
+                  <span>Seal number 1</span>
+                  <input id="sealNumber" name="sealNumber" placeholder="Optional seal / lock no." />
+                </label>
+                <label class="field">
+                  <span>Seal number 2</span>
+                  <input id="sealNumber2" name="sealNumber2" placeholder="Optional second seal" />
+                </label>
+              </div>
+            </div>
+
+            <div class="section-card">
+              <div class="section-heading">
+                <div>
+                  <span class="section-number">03</span>
+                  <h2>Additional instructions</h2>
+                </div>
+              </div>
+              <div class="form-grid three">
+                <label class="field">
+                  <span>E-way bill number</span>
+                  <input id="ewayBill" name="ewayBill" placeholder="Optional" />
+                </label>
+                <label class="field">
+                  <span>BE number</span>
+                  <input id="beNumber" name="beNumber" placeholder="Bill of entry number" />
+                </label>
+                <label class="field">
+                  <span>Invoice number</span>
+                  <input id="invoiceNumber" name="invoiceNumber" placeholder="Commercial invoice no." />
+                </label>
+                <label class="field">
+                  <span>DC number</span>
+                  <input id="dcNumber" name="dcNumber" placeholder="Delivery challan no." />
+                </label>
+                <label class="field">
+                  <span>Way bill number</span>
+                  <input id="wayBillNumber" name="wayBillNumber" placeholder="Rail / transport way bill no." />
+                </label>
+              </div>
+              <label class="field">
+                <span>Special instructions</span>
+                <textarea id="instructions" name="instructions" rows="3" placeholder="Handling instructions, delivery window, documents carried..."></textarea>
+              </label>
+            </div>
+            <div class="lr-action-bar">
+              <button class="button button-primary generate-button" type="submit">Generate LR <span>→</span></button>
+              <button class="button button-primary" id="submitLrButton" type="submit">Submit</button>
+              <button class="button button-primary" id="printLrButton" type="button">Print / PDF</button>
+              <button class="button button-ghost" id="editLrButton" type="button">Edit</button>
+              <button class="button button-ghost" id="clearLrButton" type="button">Clear</button>
+              <button class="button button-danger" id="cancelLrButton" type="button">Cancel</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="preview-column">
+          <div class="preview-header">
+            <div><span class="live-dot"></span> Live preview</div>
+            <span class="preview-tip">A4 · Print ready</span>
+          </div>
+          <article class="lr-paper" id="lrPreview">
+            <div class="paper-header">
+              <div>
+                <img class="company-logo" src="logo.jpg" alt="Sravan Shipping Services Private Limited logo" />
+                <div class="paper-company">SRAVAN SHIPPING SERVICES PRIVATE LIMITED</div>
+              </div>
+              <div class="paper-title">
+                <strong>LORRY RECEIPT</strong>
+                <span>NON-NEGOTIABLE</span>
+              </div>
+            </div>
+            <div class="paper-meta">
+              <div><small>LR NUMBER</small><strong data-preview="lrNumber">LR-2026-0001</strong></div>
+              <div><small>DATE</small><strong data-preview="lrDate">10 Sep 2026</strong></div>
+            </div>
+            <div class="route-strip">
+              <div><small>FROM</small><strong data-preview="pickup">Pickup location</strong></div>
+              <span data-preview="routeArrow">→</span>
+              <div><small>TO</small><strong data-preview="delivery">Delivery location</strong></div>
+            </div>
+            <div class="route-return" data-preview="returnSummary">One way movement</div>
+            <div class="paper-section">
+              <div class="paper-section-title">PARTIES</div>
+              <div class="paper-two-col">
+                <div><small>CONSIGNOR / BILLING PARTY</small><strong data-preview="consignor">Consignor name</strong><span class="paper-detail" data-preview="consignorAddress">Address not entered</span><span class="paper-detail">GST: <span data-preview="consignorGst">Not entered</span> · PAN: <span data-preview="consignorPan">Not entered</span></span></div>
+                <div><small>CONSIGNEE</small><strong data-preview="consignee">Consignee name</strong><span class="paper-detail" data-preview="consigneeAddress">Address not entered</span><span class="paper-detail">GST: <span data-preview="consigneeGst">Not entered</span> · PAN: <span data-preview="consigneePan">Not entered</span></span></div>
+              </div>
+            </div>
+            <div class="paper-section">
+              <div class="paper-section-title">VEHICLE & CARGO</div>
+              <div class="paper-table">
+                <div><small>EQUIPMENT</small><strong data-preview="equipment">20 ft container</strong></div>
+                <div><small>VEHICLE NO.</small><strong data-preview="vehicleNumber">Not entered</strong></div>
+                <div><small>CONTAINER / TANK NO. 1</small><strong data-preview="containerNumber1">Not entered</strong></div>
+                <div><small>CONTAINER / TANK NO. 2</small><strong data-preview="containerNumber2">Not entered</strong></div>
+                <div><small>SEAL NO. 1 / 2</small><strong><span data-preview="sealNumber">Not entered</span> / <span data-preview="sealNumber2">Not entered</span></strong></div>
+                <div><small>DESCRIPTION OF GOODS</small><strong data-preview="goodsDescription">Not entered</strong></div>
+                <div><small>COMMODITY</small><strong data-preview="commodity">Cargo description</strong></div>
+                <div><small>PACKAGES / UNITS</small><strong data-preview="packages">Not entered</strong></div>
+                <div><small>GROSS / NET / TARE</small><strong><span data-preview="grossWeight">Not entered</span> / <span data-preview="netWeight">Not entered</span> / <span data-preview="tareWeight">Not entered</span></strong></div>
+                <div><small>VALUE OF GOODS</small><strong data-preview="goodsValue">₹ 0</strong></div>
+                <div><small>E-WAY BILL</small><strong data-preview="ewayBill">Not entered</strong></div>
+              </div>
+            </div>
+            <div class="paper-section">
+              <div class="paper-section-title">DOCUMENT REFERENCES</div>
+              <div class="paper-table">
+                <div><small>BE NUMBER</small><strong data-preview="beNumber">Not entered</strong></div>
+                <div><small>INVOICE NUMBER</small><strong data-preview="invoiceNumber">Not entered</strong></div>
+                <div><small>DC NUMBER</small><strong data-preview="dcNumber">Not entered</strong></div>
+                <div><small>WAY BILL NUMBER</small><strong data-preview="wayBillNumber">Not entered</strong></div>
+              </div>
+            </div>
+            <div class="paper-instructions"><small>SPECIAL INSTRUCTIONS</small><p data-preview="instructions">No special instructions added.</p></div>
+            <div class="paper-footer">
+              <div><small>Driver</small><strong data-preview="driverName">Not entered</strong><span data-preview="driverMobile">Mobile not entered</span></div>
+              <div class="signature-line">Consignor signature</div>
+              <div class="signature-line">Authorized signatory</div>
+            </div>
+            <div class="paper-legal">Received the goods described above in apparent good order and condition, subject to the terms and conditions of carriage.</div>
+          </article>
+          <div id="printBatch" aria-hidden="true"></div>
+          <div class="preview-footer"><span>Changes update automatically</span><span id="saveStatus">Draft not saved</span></div>
+        </aside>
+      </div>
+      </section>
+
+      <section class="recent-section" id="recent">
+        <div class="recent-heading"><div><span class="eyebrow">DOCUMENT HISTORY</span><h2>LR history</h2></div><button class="text-button" id="clearHistory" type="button">Clear history</button></div>
+        <div class="history-toolbar"><input id="historySearch" type="search" placeholder="Search LR number, customer, route or vehicle..." /><select id="historyFilter"><option value="all">All dates</option><option value="month">This month</option></select></div>
+        <div class="recent-list" id="recentList"><div class="empty-state">Your generated LRs will appear here.</div></div>
+      </section>
+      <section class="view-panel" id="customers" data-panel="customers"><div class="content-panel"><div class="master-tabs" role="tablist"><button type="button" class="master-tab active" data-master-view="customers">Customers</button><button type="button" class="master-tab" data-master-view="locations">From / To locations</button><button type="button" class="master-tab" data-master-view="fleet">Vehicles & drivers</button><button type="button" class="master-menu-button" data-go-view="dashboard">☰ Menu</button></div><div class="section-heading"><div><span class="eyebrow">MASTER DATA</span><h2>Customers</h2><p class="panel-subtitle">Saved consignors, consignees and billing parties.</p></div><button class="button button-primary" data-open-modal="customerModal" type="button">＋ Add customer</button></div><div class="master-toolbar"><input id="customerSearch" type="search" placeholder="Search customers..." /></div><div id="customerList" class="master-list"></div></div></section>
+      <section class="view-panel" id="locations" data-panel="locations"><div class="content-panel"><div class="master-tabs" role="tablist"><button type="button" class="master-tab" data-master-view="customers">Customers</button><button type="button" class="master-tab active" data-master-view="locations">From / To locations</button><button type="button" class="master-tab" data-master-view="fleet">Vehicles & drivers</button><button type="button" class="master-menu-button" data-go-view="dashboard">☰ Menu</button></div><div class="section-heading"><div><span class="eyebrow">MASTER DATA</span><h2>From / To locations</h2><p class="panel-subtitle">Save regular loading, delivery, port and depot locations for quick LR selection.</p></div><button class="button button-primary" data-open-modal="locationModal" type="button">＋ Add location</button></div><div class="master-toolbar"><input id="locationSearch" type="search" placeholder="Search locations..." /></div><div id="locationList" class="master-list"></div></div></section>
+      <section class="view-panel" id="fleet" data-panel="fleet"><div class="content-panel"><div class="master-tabs" role="tablist"><button type="button" class="master-tab" data-master-view="customers">Customers</button><button type="button" class="master-tab" data-master-view="locations">From / To locations</button><button type="button" class="master-tab active" data-master-view="fleet">Vehicles & drivers</button><button type="button" class="master-menu-button" data-go-view="dashboard">☰ Menu</button></div><div class="section-heading"><div><span class="eyebrow">MASTER DATA</span><h2>Vehicles & drivers</h2><p class="panel-subtitle">Keep equipment and driver contacts ready for dispatch.</p></div><button class="button button-primary" data-open-modal="vehicleModal" type="button">＋ Add vehicle</button></div><div class="master-toolbar"><input id="vehicleSearch" type="search" placeholder="Search registration, driver or type..." /></div><div id="vehicleList" class="master-list"></div></div></section>
+      <section class="view-panel" id="settings" data-panel="settings"><div class="content-panel settings-panel"><div class="section-heading"><div><span class="eyebrow">WORKSPACE SETTINGS</span><h2>Company profile</h2><p class="panel-subtitle">These details stay on this device and help standardize your documents.</p></div></div><form id="settingsForm" class="settings-form"><label class="field"><span>Company name</span><input id="settingCompany" value="SRAVAN SHIPPING SERVICES PRIVATE LIMITED" /></label><label class="field"><span>Operations contact</span><input id="settingContact" placeholder="Name or team" /></label><label class="field"><span>Phone / email</span><input id="settingContactLine" placeholder="+91 ... · operations@example.com" /></label><label class="field"><span>Default terms note</span><textarea id="settingTerms" rows="3" placeholder="Optional internal note"></textarea></label><button class="button button-primary" type="submit">Save profile</button></form></div></section>
+    </main>
+  </div>
+  <div class="modal-backdrop" id="customerModal" hidden><form class="modal-card" id="customerForm"><button class="modal-close" type="button" data-close-modal>×</button><span class="eyebrow">CUSTOMER MASTER</span><h2 id="customerModalTitle">Add customer</h2><input type="hidden" id="customerId" /><label class="field"><span>Customer / company name *</span><input id="customerName" required /></label><label class="field"><span>GST number</span><input id="customerGst" placeholder="Optional GSTIN" /></label><label class="field"><span>PAN number</span><input id="customerPan" placeholder="Optional PAN" /></label><label class="field"><span>Full address</span><textarea id="customerAddress" rows="3" required></textarea></label><label class="field"><span>Contact</span><input id="customerContact" placeholder="Phone or email" /></label><div class="modal-actions"><button class="button button-ghost" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save customer</button></div></form></div>
+  <div class="modal-backdrop" id="locationModal" hidden><form class="modal-card" id="locationForm"><button class="modal-close" type="button" data-close-modal>×</button><span class="eyebrow">LOCATION MASTER</span><h2 id="locationModalTitle">Add location</h2><input type="hidden" id="locationId" /><label class="field"><span>Location name *</span><input id="locationName" required placeholder="e.g. ADB Road, Kakinada" /></label><label class="field"><span>Full address *</span><textarea id="locationAddress" rows="3" required placeholder="Plot, street, city, state, PIN"></textarea></label><label class="field"><span>Location type</span><select id="locationType"><option>Loading point</option><option>Delivery point</option><option>Port</option><option>Depot / yard</option><option>Warehouse</option><option>Other</option></select></label><div class="modal-actions"><button class="button button-ghost" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save location</button></div></form></div>
+  <div class="modal-backdrop" id="vehicleModal" hidden><form class="modal-card" id="vehicleForm"><button class="modal-close" type="button" data-close-modal>×</button><span class="eyebrow">FLEET MASTER</span><h2 id="vehicleModalTitle">Add vehicle</h2><input type="hidden" id="vehicleId" /><label class="field"><span>Vehicle registration *</span><input id="masterVehicleNumber" required placeholder="MH 04 AB 1234" /></label><label class="field"><span>Equipment type</span><select id="masterVehicleType"><option>Container trailer</option><option>Tank container</option><option>Trailer</option><option>Cargo truck</option></select></label><label class="field"><span>Driver name *</span><input id="masterDriverName" required /></label><label class="field"><span>Driver mobile</span><input id="masterDriverMobile" type="tel" /></label><div class="modal-actions"><button class="button button-ghost" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save vehicle</button></div></form></div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
