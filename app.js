@@ -239,6 +239,12 @@ function renderDashboard(history = readStore(historyKey)) {
   const target = document.getElementById("dashboardRecent");
   if (!target) return;
   target.innerHTML = history.slice(0, 4).map((item) => `<div class="compact-row"><div><small>LR NUMBER</small><strong>${escapeHtml(item.lrNumber)}</strong></div><div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong></div><div class="history-actions"><button type="button" data-edit-history-lr="${escapeHtml(item.lrNumber)}">Edit</button><button type="button" data-history-lr="${escapeHtml(item.lrNumber)}">Load</button></div></div>`).join("") || '<div class="empty-state">No dispatches yet. Create your first LR to see activity here.</div>';
+  const jobs = readStore(jobsKey);
+  const dashboardJobs = document.getElementById("dashboardJobs");
+  dashboardJobs.innerHTML = jobs.slice(0, 4).map((job) => {
+    const linked = history.filter((item) => item.jobId === job.id).length;
+    return `<div class="compact-row"><div><small>JOB ID</small><strong>${escapeHtml(job.id)}</strong></div><div><small>ROUTE · LRs</small><strong>${escapeHtml(job.pickup)} → ${escapeHtml(job.delivery)}</strong><span>${linked}/${Number(job.vehicleCount) || 1} LRs</span></div><div><small>VEHICLE TYPE</small><strong>${escapeHtml(equipmentNames[job.vehicleType] || job.vehicleType)}</strong></div></div>`;
+  }).join("") || '<div class="empty-state">No jobs created yet. Use Create Job to add your first dispatch.</div>';
 }
 
 function renderJobs() {
