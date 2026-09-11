@@ -7,6 +7,7 @@ const customerKey = "routeledger-customers";
 const locationKey = "routeledger-locations";
 const vehicleKey = "routeledger-vehicles";
 const settingsKey = "routeledger-settings";
+const jobsKey = "routeledger-jobs";
 let editingLrNumber = "";
 
 const equipmentNames = {
@@ -53,7 +54,33 @@ function getFormData() {
   const data = {};
   fields.forEach((id) => { data[id] = document.getElementById(id).value; });
   data.equipment = document.querySelector('input[name="equipment"]:checked').value;
+  data.jobId = document.getElementById("jobId").value;
   return data;
+}
+
+function makeJobNumber() {
+  return `JOB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+}
+
+function populateJobOptions() {
+  const jobs = readStore(jobsKey);
+  const select = document.getElementById("jobId");
+  const current = select.value;
+  select.innerHTML = '<option value="">Select a saved job</option>' + jobs.map((job) => `<option value="${escapeHtml(job.id)}">${escapeHtml(job.id)} · ${escapeHtml(job.pickup)} → ${escapeHtml(job.delivery)}</option>`).join("");
+  if (jobs.some((job) => job.id === current)) select.value = current;
+}
+
+function populateJobModalOptions() {
+  const customers = readStore(customerKey);
+  const locations = readStore(locationKey);
+  ["jobConsignor", "jobConsignee"].forEach((id) => {
+    const select = document.getElementById(id);
+    select.innerHTML = '<option value="">Select customer</option>' + customers.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("");
+  });
+  ["jobPickup", "jobDelivery"].forEach((id) => {
+    const select = document.getElementById(id);
+    select.innerHTML = '<option value="">Select location</option>' + locations.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("");
+  });
 }
 
 function updatePreview() {
@@ -174,26 +201,30 @@ function renderDashboard(history = readStore(historyKey)) {
 }
 
 function renderJobs() {
+  const jobs = readStore(jobsKey);
   const history = readStore(historyKey);
   const start = document.getElementById("jobsStartDate")?.value || "";
   const end = document.getElementById("jobsEndDate")?.value || "";
   const status = document.getElementById("jobsStatus")?.value || "all";
   const today = new Date().toISOString().slice(0, 10);
-  const visible = history.filter((item) => {
-    const date = item.lrDate || "";
+  const visible = jobs.filter((item) => {
+    const date = item.jobDate || "";
     return (!start || date >= start) && (!end || date <= end)
       && (status === "all" || (status === "today" && date === today) || (status === "return" && item.movementType === "return"));
   });
-  document.getElementById("jobsCount").textContent = history.length;
+  document.getElementById("jobsCount").textContent = jobs.length;
   document.getElementById("jobsVisibleCount").textContent = `${visible.length} job${visible.length === 1 ? "" : "s"}`;
-  document.getElementById("jobsList").innerHTML = visible.map((item) => `
+  document.getElementById("jobsList").innerHTML = visible.map((item) => {
+    const linkedLrs = history.filter((lr) => lr.jobId === item.id);
+    return `
     <article class="job-card">
-      <div class="job-status ${item.movementType === "return" ? "return" : ""}">${item.movementType === "return" ? "RETURN" : "ONE WAY"}</div>
-      <div class="job-main"><small>LR NUMBER · ${escapeHtml(formatDate(item.lrDate))}</small><strong>${escapeHtml(item.lrNumber)}</strong><span>${escapeHtml(item.consignor || "Consignor not entered")} → ${escapeHtml(item.consignee || "Consignee not entered")}</span></div>
-      <div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong><span>${escapeHtml(equipmentNames[item.equipment] || item.equipment || "Equipment not entered")}</span></div>
-      <div><small>VEHICLE</small><strong>${escapeHtml(item.vehicleNumber || "Not assigned")}</strong><span>${escapeHtml(item.driverName || "Driver not entered")}</span></div>
-      <div class="job-actions"><button type="button" data-job-load="${escapeHtml(item.lrNumber)}">Load</button><button type="button" data-job-edit="${escapeHtml(item.lrNumber)}">Edit</button></div>
-    </article>`).join("") || '<div class="empty-state">No jobs match the selected filters. Create and save an LR to add a route job.</div>';
+      <div class="job-status">${linkedLrs.length} LR${linkedLrs.length === 1 ? "" : "s"}</div>
+      <div class="job-main"><small>JOB ID · ${escapeHtml(formatDate(item.jobDate))}</small><strong>${escapeHtml(item.id)}</strong><span>${escapeHtml(item.consignor)} → ${escapeHtml(item.consignee)}</span></div>
+      <div><small>ROUTE</small><strong>${escapeHtml(item.pickup)} → ${escapeHtml(item.delivery)}</strong><span>${escapeHtml(item.instructions || "No special instructions")}</span></div>
+      <div><small>LINKED LR</small><strong>${escapeHtml(linkedLrs[0]?.lrNumber || "Not created")}</strong><span>${linkedLrs.length > 1 ? `+${linkedLrs.length - 1} more` : "Create LR in this job"}</span></div>
+      <div class="job-actions"><button type="button" data-job-create-lr="${escapeHtml(item.id)}">Create LR</button>${linkedLrs[0] ? `<button type="button" data-job-load="${escapeHtml(linkedLrs[0].lrNumber)}">Load</button>` : ""}</div>
+    </article>`;
+  }).join("") || '<div class="empty-state">No jobs match the selected filters. Create a job before creating its LR.</div>';
 }
 
 function renderCustomers() {
@@ -254,7 +285,7 @@ function openModal(id, item = null) {
     document.getElementById("locationAddress").value = item?.address || "";
     document.getElementById("locationType").value = item?.type || "Loading point";
     document.getElementById("locationModalTitle").textContent = item ? "Edit location" : "Add location";
-  } else {
+  } else if (id === "vehicleModal") {
     document.getElementById("vehicleForm").reset();
     document.getElementById("vehicleId").value = item?.id || "";
     document.getElementById("masterVehicleNumber").value = item?.number || "";
@@ -262,6 +293,11 @@ function openModal(id, item = null) {
     document.getElementById("masterDriverName").value = item?.driver || "";
     document.getElementById("masterDriverMobile").value = item?.mobile || "";
     document.getElementById("vehicleModalTitle").textContent = item ? "Edit vehicle" : "Add vehicle";
+  } else if (id === "jobModal") {
+    document.getElementById("jobForm").reset();
+    document.getElementById("jobNumber").value = makeJobNumber();
+    document.getElementById("jobDate").value = new Date().toISOString().slice(0, 10);
+    populateJobModalOptions();
   }
 }
 
@@ -291,6 +327,8 @@ function loadData(data, editMode = false) {
   fields.forEach((id) => {
     if (data[id] !== undefined) document.getElementById(id).value = data[id];
   });
+  populateJobOptions();
+  document.getElementById("jobId").value = data.jobId || "";
   const equipment = document.querySelector(`input[name="equipment"][value="${data.equipment}"]`);
   if (equipment) equipment.checked = true;
   document.getElementById("vehicleNumber").disabled = editMode;
@@ -441,6 +479,15 @@ document.getElementById("clearJobsFilters").addEventListener("click", () => {
   renderJobs();
 });
 document.getElementById("jobsList").addEventListener("click", (event) => {
+  const createButton = event.target.closest("[data-job-create-lr]");
+  if (createButton) {
+    activateView("create");
+    populateJobOptions();
+    document.getElementById("jobId").value = createButton.dataset.jobCreateLr;
+    updatePreview();
+    showToast(`${createButton.dataset.jobCreateLr} selected for new LR`);
+    return;
+  }
   const button = event.target.closest("[data-job-load], [data-job-edit]");
   if (!button) return;
   const lrNumber = button.dataset.jobLoad || button.dataset.jobEdit;
@@ -477,6 +524,26 @@ document.getElementById("vehicleForm").addEventListener("submit", (event) => {
   const record = { id, number: document.getElementById("masterVehicleNumber").value.trim(), type: document.getElementById("masterVehicleType").value, driver: document.getElementById("masterDriverName").value.trim(), mobile: document.getElementById("masterDriverMobile").value.trim() };
   writeStore(vehicleKey, [record, ...items.filter((item) => item.id !== id)]);
   closeModals(); renderVehicles(); renderDashboard(); showToast("Vehicle saved");
+});
+
+document.getElementById("jobForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const jobs = readStore(jobsKey);
+  const record = {
+    id: document.getElementById("jobNumber").value,
+    jobDate: document.getElementById("jobDate").value,
+    consignor: document.getElementById("jobConsignor").value,
+    consignee: document.getElementById("jobConsignee").value,
+    pickup: document.getElementById("jobPickup").value,
+    delivery: document.getElementById("jobDelivery").value,
+    instructions: document.getElementById("jobInstructions").value.trim()
+  };
+  writeStore(jobsKey, [record, ...jobs.filter((item) => item.id !== record.id)]);
+  closeModals();
+  populateJobOptions();
+  renderJobs();
+  activateView("jobs");
+  showToast(`${record.id} created. Create the LR from this job.`);
 });
 
 document.getElementById("locationForm").addEventListener("submit", (event) => {
@@ -535,6 +602,7 @@ document.getElementById("settingsForm").addEventListener("submit", (event) => {
 window.addEventListener("hashchange", () => activateView(window.location.hash.replace("#", "") === "recent" ? "history" : (window.location.hash.replace("#", "") || "dashboard")));
 renderCustomers();
 renderLocations();
+populateJobOptions();
 updatePreview();
 renderHistory();
 activateView(window.location.hash.replace("#", "") === "recent" ? "history" : (window.location.hash.replace("#", "") || "dashboard"));
