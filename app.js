@@ -58,6 +58,26 @@ function getFormData() {
   return data;
 }
 
+function getSelectedJobCapacity(data) {
+  const job = readStore(jobsKey).find((item) => item.id === data.jobId);
+  if (!job) return { job: null, linked: 0, capacity: 0 };
+  const linked = readStore(historyKey).filter((item) => item.jobId === data.jobId && item.lrNumber !== editingLrNumber).length;
+  return { job, linked, capacity: Number(job.vehicleCount) || 1 };
+}
+
+function validateJobCapacity(data) {
+  const { job, linked, capacity } = getSelectedJobCapacity(data);
+  if (!job) {
+    showToast("Select a valid Job ID before saving the LR");
+    return false;
+  }
+  if (linked >= capacity) {
+    showToast(`${job.id} already has ${capacity} LR${capacity === 1 ? "" : "s"} for ${capacity} vehicle${capacity === 1 ? "" : "s"}`);
+    return false;
+  }
+  return true;
+}
+
 function makeJobNumber() {
   return `JOB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 }
@@ -81,6 +101,8 @@ function populateJobModalOptions() {
     const select = document.getElementById(id);
     select.innerHTML = '<option value="">Select location</option>' + locations.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("");
   });
+  const returnSelect = document.getElementById("jobReturnLocation");
+  returnSelect.innerHTML = '<option value="">Select return location</option>' + locations.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("");
 }
 
 function updatePreview() {
@@ -218,9 +240,9 @@ function renderJobs() {
     const linkedLrs = history.filter((lr) => lr.jobId === item.id);
     return `
     <article class="job-card">
-      <div class="job-status">${linkedLrs.length} LR${linkedLrs.length === 1 ? "" : "s"}</div>
+      <div class="job-status">${linkedLrs.length}/${Number(item.vehicleCount) || 1} LR${linkedLrs.length === 1 ? "" : "s"}</div>
       <div class="job-main"><small>JOB ID · ${escapeHtml(formatDate(item.jobDate))}</small><strong>${escapeHtml(item.id)}</strong><span>${escapeHtml(item.consignor)} → ${escapeHtml(item.consignee)}</span></div>
-      <div><small>ROUTE</small><strong>${escapeHtml(item.pickup)} → ${escapeHtml(item.delivery)}</strong><span>${escapeHtml(item.instructions || "No special instructions")}</span></div>
+      <div><small>ROUTE</small><strong>${escapeHtml(item.pickup)} → ${escapeHtml(item.delivery)}</strong><span>${item.movementType === "return" ? `Return to ${escapeHtml(item.returnLocation || "origin")}` : "One way"} · ${escapeHtml(equipmentNames[item.vehicleType] || item.vehicleType)}</span></div>
       <div><small>LINKED LR</small><strong>${escapeHtml(linkedLrs[0]?.lrNumber || "Not created")}</strong><span>${linkedLrs.length > 1 ? `+${linkedLrs.length - 1} more` : "Create LR in this job"}</span></div>
       <div class="job-actions"><button type="button" data-job-create-lr="${escapeHtml(item.id)}">Create LR</button>${linkedLrs[0] ? `<button type="button" data-job-load="${escapeHtml(linkedLrs[0].lrNumber)}">Load</button>` : ""}</div>
     </article>`;
@@ -297,6 +319,7 @@ function openModal(id, item = null) {
     document.getElementById("jobForm").reset();
     document.getElementById("jobNumber").value = makeJobNumber();
     document.getElementById("jobDate").value = new Date().toISOString().slice(0, 10);
+    document.getElementById("jobMovementType").value = "one-way";
     populateJobModalOptions();
   }
 }
@@ -362,6 +385,7 @@ form.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!form.reportValidity()) return;
   const data = getFormData();
+  if (!validateJobCapacity(data)) return;
   if (editingLrNumber) data.lrNumber = editingLrNumber;
   saveHistory(data);
   editingLrNumber = "";
@@ -376,6 +400,7 @@ function printCurrentLr() {
     return false;
   }
   const data = getFormData();
+  if (!validateJobCapacity(data)) return false;
   saveHistory(data);
   renderPrintBatch(data);
   window.print();
@@ -483,6 +508,18 @@ document.getElementById("jobsList").addEventListener("click", (event) => {
   if (createButton) {
     activateView("create");
     populateJobOptions();
+    const job = readStore(jobsKey).find((item) => item.id === createButton.dataset.jobCreateLr);
+    if (job) {
+      document.getElementById("consignor").value = job.consignor;
+      document.getElementById("consignee").value = job.consignee;
+      document.getElementById("pickup").value = job.pickup;
+      document.getElementById("delivery").value = job.delivery;
+      document.getElementById("movementType").value = job.movementType || "one-way";
+      document.getElementById("returnLocation").value = job.returnLocation || "";
+      document.querySelector(`input[name="equipment"][value="${job.vehicleType}"]`).checked = true;
+      document.getElementById("consignor").dispatchEvent(new Event("change", { bubbles: true }));
+      document.getElementById("consignee").dispatchEvent(new Event("change", { bubbles: true }));
+    }
     document.getElementById("jobId").value = createButton.dataset.jobCreateLr;
     updatePreview();
     showToast(`${createButton.dataset.jobCreateLr} selected for new LR`);
@@ -506,6 +543,20 @@ document.getElementById("vehicleNumber").addEventListener("change", (event) => {
   document.getElementById("driverMobile").value = selected.mobile || "";
   updatePreview();
   showToast(`${selected.number} selected`);
+});
+document.getElementById("jobId").addEventListener("change", () => {
+  const job = readStore(jobsKey).find((item) => item.id === document.getElementById("jobId").value);
+  if (!job) return;
+  document.getElementById("consignor").value = job.consignor;
+  document.getElementById("consignee").value = job.consignee;
+  document.getElementById("pickup").value = job.pickup;
+  document.getElementById("delivery").value = job.delivery;
+  document.getElementById("movementType").value = job.movementType || "one-way";
+  document.getElementById("returnLocation").value = job.returnLocation || "";
+  document.querySelector(`input[name="equipment"][value="${job.vehicleType}"]`).checked = true;
+  document.getElementById("consignor").dispatchEvent(new Event("change", { bubbles: true }));
+  document.getElementById("consignee").dispatchEvent(new Event("change", { bubbles: true }));
+  updatePreview();
 });
 
 document.getElementById("customerForm").addEventListener("submit", (event) => {
@@ -536,6 +587,10 @@ document.getElementById("jobForm").addEventListener("submit", (event) => {
     consignee: document.getElementById("jobConsignee").value,
     pickup: document.getElementById("jobPickup").value,
     delivery: document.getElementById("jobDelivery").value,
+    movementType: document.getElementById("jobMovementType").value,
+    returnLocation: document.getElementById("jobReturnLocation").value,
+    vehicleCount: Number(document.getElementById("jobVehicleCount").value),
+    vehicleType: document.getElementById("jobVehicleType").value,
     instructions: document.getElementById("jobInstructions").value.trim()
   };
   writeStore(jobsKey, [record, ...jobs.filter((item) => item.id !== record.id)]);
