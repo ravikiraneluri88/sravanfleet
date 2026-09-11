@@ -350,6 +350,7 @@ function closeModals() {
 function activateView(view) {
   document.querySelectorAll("[data-panel]").forEach((panel) => panel.classList.toggle("active-view", panel.dataset.panel === view));
   document.getElementById("recent").classList.toggle("active-view", view === "history");
+  document.getElementById("mainMenuButton").hidden = view === "dashboard";
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
   document.querySelectorAll(".master-tab").forEach((item) => item.classList.toggle("active", item.dataset.masterView === view));
   if (["customers", "locations", "fleet"].includes(view)) {
