@@ -606,8 +606,7 @@ document.getElementById("jobForm").addEventListener("submit", (event) => {
     movementType: document.getElementById("jobMovementType").value,
     returnLocation: document.getElementById("jobReturnLocation").value,
     vehicleCount: Number(document.getElementById("jobVehicleCount").value),
-    vehicleType: document.getElementById("jobVehicleType").value,
-    instructions: document.getElementById("jobInstructions").value.trim()
+    vehicleType: document.getElementById("jobVehicleType").value
   };
   writeStore(jobsKey, [record, ...jobs.filter((item) => item.id !== record.id)]);
   closeModals();
