@@ -108,9 +108,8 @@
                 </label>
                 <label class="field">
                   <span>Job ID <b>*</b></span>
-                  <select id="jobId" name="jobId" required>
-                    <option value="">Create a job first</option>
-                  </select>
+                  <input id="jobId" name="jobId" list="jobIdOptions" required placeholder="Enter unique Job ID, e.g. JOB-2026-123456" autocomplete="off" />
+                  <datalist id="jobIdOptions"></datalist>
                 </label>
                 <label class="field">
                   <span>Consignor / billing party <b>*</b></span>
