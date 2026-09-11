@@ -173,6 +173,29 @@ function renderDashboard(history = readStore(historyKey)) {
   target.innerHTML = history.slice(0, 4).map((item) => `<div class="compact-row"><div><small>LR NUMBER</small><strong>${escapeHtml(item.lrNumber)}</strong></div><div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong></div><div class="history-actions"><button type="button" data-edit-history-lr="${escapeHtml(item.lrNumber)}">Edit</button><button type="button" data-history-lr="${escapeHtml(item.lrNumber)}">Load</button></div></div>`).join("") || '<div class="empty-state">No dispatches yet. Create your first LR to see activity here.</div>';
 }
 
+function renderJobs() {
+  const history = readStore(historyKey);
+  const start = document.getElementById("jobsStartDate")?.value || "";
+  const end = document.getElementById("jobsEndDate")?.value || "";
+  const status = document.getElementById("jobsStatus")?.value || "all";
+  const today = new Date().toISOString().slice(0, 10);
+  const visible = history.filter((item) => {
+    const date = item.lrDate || "";
+    return (!start || date >= start) && (!end || date <= end)
+      && (status === "all" || (status === "today" && date === today) || (status === "return" && item.movementType === "return"));
+  });
+  document.getElementById("jobsCount").textContent = history.length;
+  document.getElementById("jobsVisibleCount").textContent = `${visible.length} job${visible.length === 1 ? "" : "s"}`;
+  document.getElementById("jobsList").innerHTML = visible.map((item) => `
+    <article class="job-card">
+      <div class="job-status ${item.movementType === "return" ? "return" : ""}">${item.movementType === "return" ? "RETURN" : "ONE WAY"}</div>
+      <div class="job-main"><small>LR NUMBER · ${escapeHtml(formatDate(item.lrDate))}</small><strong>${escapeHtml(item.lrNumber)}</strong><span>${escapeHtml(item.consignor || "Consignor not entered")} → ${escapeHtml(item.consignee || "Consignee not entered")}</span></div>
+      <div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong><span>${escapeHtml(equipmentNames[item.equipment] || item.equipment || "Equipment not entered")}</span></div>
+      <div><small>VEHICLE</small><strong>${escapeHtml(item.vehicleNumber || "Not assigned")}</strong><span>${escapeHtml(item.driverName || "Driver not entered")}</span></div>
+      <div class="job-actions"><button type="button" data-job-load="${escapeHtml(item.lrNumber)}">Load</button><button type="button" data-job-edit="${escapeHtml(item.lrNumber)}">Edit</button></div>
+    </article>`).join("") || '<div class="empty-state">No jobs match the selected filters. Create and save an LR to add a route job.</div>';
+}
+
 function renderCustomers() {
   const query = (document.getElementById("customerSearch")?.value || "").toLowerCase();
   const items = readStore(customerKey).filter((item) => `${item.name} ${item.gst} ${item.contact}`.toLowerCase().includes(query));
@@ -254,12 +277,13 @@ function activateView(view) {
   if (["customers", "locations", "fleet"].includes(view)) {
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === "customers"));
   }
-  const copy = { dashboard: ["Operations overview", "A clear view of dispatch activity, customers and fleet readiness."], create: ["Create lorry receipt", "Capture the trip, vehicle and cargo details in one dispatch-ready document."], history: ["LR history", "Search, review and reload previously generated receipts."], customers: ["Customers", "Manage the parties your operations team works with every day."], locations: ["From / To locations", "Manage saved loading, delivery, port and depot locations."], fleet: ["Vehicles & drivers", "Keep equipment and driver contacts ready for dispatch."], settings: ["Company profile", "Manage local workspace preferences and document defaults."] }[view] || null;
+  const copy = { dashboard: ["Operations overview", "A clear view of dispatch activity, customers and fleet readiness."], jobs: ["Jobs / Routes", "Plan, filter and review dispatch jobs created from your LRs."], create: ["Create lorry receipt", "Capture the trip, vehicle and cargo details in one dispatch-ready document."], history: ["LR history", "Search, review and reload previously generated receipts."], customers: ["Customers", "Manage the parties your operations team works with every day."], locations: ["From / To locations", "Manage saved loading, delivery, port and depot locations."], fleet: ["Vehicles & drivers", "Keep equipment and driver contacts ready for dispatch."], settings: ["Company profile", "Manage local workspace preferences and document defaults."] }[view] || null;
   if (copy) { document.getElementById("pageTitle").textContent = copy[0]; document.getElementById("pageIntro").textContent = copy[1]; }
   if (view === "customers") renderCustomers();
   if (view === "locations") renderLocations();
   if (view === "fleet") renderVehicles();
   if (view === "dashboard") renderDashboard();
+  if (view === "jobs") renderJobs();
 }
 
 function loadData(data, editMode = false) {
@@ -409,6 +433,22 @@ document.getElementById("dashboardRecent").addEventListener("click", (event) => 
 
 document.getElementById("historySearch").addEventListener("input", renderHistory);
 document.getElementById("historyFilter").addEventListener("change", renderHistory);
+["jobsStartDate", "jobsEndDate", "jobsStatus"].forEach((id) => document.getElementById(id).addEventListener("input", renderJobs));
+document.getElementById("clearJobsFilters").addEventListener("click", () => {
+  document.getElementById("jobsStartDate").value = "";
+  document.getElementById("jobsEndDate").value = "";
+  document.getElementById("jobsStatus").value = "all";
+  renderJobs();
+});
+document.getElementById("jobsList").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-job-load], [data-job-edit]");
+  if (!button) return;
+  const lrNumber = button.dataset.jobLoad || button.dataset.jobEdit;
+  const item = readStore(historyKey).find((entry) => entry.lrNumber === lrNumber);
+  if (!item) return;
+  activateView("create");
+  loadData(item, Boolean(button.dataset.jobEdit));
+});
 document.getElementById("customerSearch").addEventListener("input", renderCustomers);
 document.getElementById("locationSearch").addEventListener("input", renderLocations);
 document.getElementById("vehicleSearch").addEventListener("input", renderVehicles);
