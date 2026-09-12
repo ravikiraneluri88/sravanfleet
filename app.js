@@ -150,39 +150,34 @@ function updatePreview() {
 
 function renderPrintBatch(data) {
   const batch = document.getElementById("printBatch");
-  const source = document.getElementById("lrPreview");
-  batch.innerHTML = "";
-  copyNames.forEach((copyName) => {
-    const front = source.cloneNode(true);
-    front.removeAttribute("id");
-    front.classList.add("print-front");
-    const title = document.createElement("div");
-    title.className = "print-copy-label";
-    title.textContent = copyName;
-    front.querySelector(".paper-title span").textContent = copyName.toUpperCase();
-    front.insertBefore(title, front.firstChild);
-    const terms = document.createElement("section");
-    terms.className = "terms-page";
-    terms.innerHTML = `
-      <div class="terms-header">
-        <div class="paper-logo"><span>R</span> SRAVAN SHIPPING SERVICES PRIVATE LIMITED</div>
-        <strong>TERMS & CONDITIONS OF CARRIAGE</strong>
-        <small>LR NO. ${displayValue(data.lrNumber, "LR-2026-0001")} · ${copyName.toUpperCase()}</small>
-      </div>
-      <ol>
-        <li>The consignment is carried at the owner's risk unless insurance has been arranged by the consignor. The carrier is not responsible for loss or damage covered by insurance.</li>
-        <li>The consignor confirms that the description, weight, value, packing and documents supplied for the goods are complete and accurate.</li>
-        <li>All statutory documents, permits, invoices, e-way bills, customs documents and declarations required for transport shall be provided by the consignor.</li>
-        <li>The carrier may refuse or stop carriage of prohibited, dangerous, leaking, incorrectly declared or inadequately packed goods.</li>
-        <li>Loading, securing, unloading and the condition of the container or vehicle must be verified by the concerned parties before dispatch.</li>
-        <li>Delivery will be made against the required documents and acknowledgement at the stated destination. Demurrage, detention, waiting and additional handling charges, if applicable, are payable by the responsible party.</li>
-        <li>Any delay caused by weather, road restrictions, strikes, government action, breakdown, port congestion or other events beyond the carrier's control shall not constitute a breach of carriage.</li>
-        <li>Claims must be notified in writing promptly and supported by the LR, delivery proof and relevant evidence, subject to applicable law.</li>
-        <li>Any disputes relating to this LR are subject to the jurisdiction stated on the front of this LR.</li>
-      </ol>
-      <div class="terms-signatures"><span>Consignor acknowledgement</span><span>Authorized signatory</span></div>`;
-    batch.append(front, terms);
-  });
+  const value = (key, fallback = "") => escapeHtml(displayValue(data[key], fallback));
+  const date = escapeHtml(formatDate(data.lrDate));
+  batch.innerHTML = `
+    <article class="word-lr">
+      <header class="word-lr-header">
+        <div class="word-lr-logo"><img src="logo.jpg" alt="Sravan Shipping Services Private Limited logo" /></div>
+        <div class="word-lr-number">LR NO-<br><strong>${value("lrNumber", "2025-26-M06558")}</strong></div>
+        <div class="word-lr-jurisdiction">Subject to Visakhapatnam Jurisdiction</div>
+        <div class="word-lr-company">SRAVAN SHIPPING SERVICES PVT.<br>LTD.<small>H.O. Plot No. 12, IDA, Block-A, Mindi, Gajuwaka-530012, Andhra Pradesh</small></div>
+      </header>
+      <table class="word-lr-table">
+        <tr><td colspan="4"><b>LOAD From :</b> ${value("pickup", "SRAVAN CFS 1")}</td><td colspan="3"><b>TO :</b> ${value("delivery", "ATCHUTAPURAM")}</td></tr>
+        <tr><td colspan="4"><b>Unload At :</b> ${value("delivery", "ATCHUTAPURAM")}</td><td colspan="3"><b>Date :</b> ${date}</td></tr>
+        <tr><td colspan="4"><b>Consignor: M/S</b><br>${value("consignor")}</td><td colspan="3"><b>Consignee: M/S</b><br>${value("consignee")}</td></tr>
+        <tr><td colspan="4" class="word-lr-address">${value("consignorAddress", "SRAVAN SHIPPING SERVICES PRIVATE LIMITED, PLOT No. 12, IDA, BLOCK A, BESIDE VISAKHA DAIRY, MINDHI, GAJUWAKA, VISAKHAPATNAM - 530012")}</td><td colspan="3" class="word-lr-address">${value("consigneeAddress")}</td></tr>
+        <tr><td colspan="4"><b>GSTIN -</b> ${value("consignorGst")}</td><td colspan="3"><b>GSTIN</b> ${value("consigneeGst")}</td></tr>
+        <tr class="word-lr-headings"><th>Truck No.</th><th>Packages</th><th colspan="2">Weight</th><th>Description of Product</th><th colspan="2">GTSTIN</th></tr>
+        <tr class="word-lr-main"><td rowspan="2">${value("vehicleNumber")}</td><td rowspan="2">${value("packages", "1 FCL @ TANK")}</td><td>Actual</td><td>Charged</td><td rowspan="2"><b>Cont. No :</b> ${value("containerNumber1")}<br><b>BE NO :</b> ${value("beNumber")}<br><b>Invoice No/Date :</b> ${value("invoiceNumber")}<br><b>Cargo :</b> ${value("commodity", data.goodsDescription)}<br><b>D.C. No. :</b> ${value("dcNumber")}<br><b>Way Bill No :</b> ${value("wayBillNumber")}<br><b>AT OWNER'S RISK</b></td><td colspan="2">${value("consigneeGst")}</td></tr>
+        <tr class="word-lr-detail"><td colspan="2"><b>Gross</b> - ${value("grossWeight")}<br><b>Tare</b> - ${value("tareWeight")}<br><b>Net</b> - ${value("netWeight")}</td><td colspan="2">FTL / ${data.movementType === "return" ? "ROUND TRIP" : "ONE WAY"}<br>VALUE OF GOODS : ${value("goodsValue", "0")}</td></tr>
+        <tr class="word-lr-notice"><td colspan="4"></td><td colspan="3">We have not availed any benefits under notification No.12/2003/St. Dated 20-06-2003 (Refer Notification No. 1/2006/date 01-03-2006)<br><b>To be billed at Visakhapatnam</b></td></tr>
+      </table>
+      <footer class="word-lr-footer">
+        <p>For <b>SRAVAN SHIPPING SERVICES PVT. LTD.</b></p>
+        <p>Please take Insurance of the Product in case of Road Accident. We will not be responsible.<br>Goods are accepted subject to Terms &amp; Conditions printed overleaf.</p>
+        <div class="word-lr-signature">Authorised Signatory.</div>
+        <div class="word-lr-driver"><span>Name of Owner: <b>SSSPL</b></span><span>Name of Driver: ${value("driverName")}</span><span>D.L. No.</span><span>Driver's Signature.</span></div>
+      </footer>
+    </article>`;
 }
 
 function showToast(message) {

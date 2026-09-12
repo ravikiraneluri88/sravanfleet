@@ -42,3 +42,37 @@
 .brand-logo{display:block;width:190px;height:58px;object-fit:contain;object-position:left center;background:#fff;border-radius:7px;padding:7px}
 .brand-subtitle{margin-top:8px}
 @media(max-width:700px){.brand-logo{width:170px;height:52px}}
+@page{size:A4 portrait;margin:10mm}
+.word-lr{display:none}
+@media print{
+  html,body{width:auto;height:auto;background:#fff;font-family:Cambria,"Times New Roman",serif;color:#000}
+  .main-content{width:190mm!important;padding:0!important}
+  .workspace-grid,.preview-column{width:190mm!important;max-width:none!important}
+  .preview-column>#printBatch{display:block;width:100%}
+  .preview-column>#printBatch>*{display:none}
+  .word-lr{display:block;width:100%;font:10pt Cambria,"Times New Roman",serif;line-height:1.12;page-break-after:always;break-after:page}
+  .word-lr-header{height:38mm;position:relative;border-bottom:1px solid #000}
+  .word-lr-logo{position:absolute;left:0;top:1mm;width:42mm;height:25mm}
+  .word-lr-logo img{width:100%;height:100%;object-fit:contain}
+  .word-lr-number{position:absolute;right:0;top:0;text-align:center;font-size:10pt}
+  .word-lr-number strong{font-size:13pt}
+  .word-lr-jurisdiction{position:absolute;right:0;top:18mm;font-weight:700}
+  .word-lr-company{position:absolute;left:45mm;top:5mm;text-align:center;font-size:15pt;font-weight:700;line-height:1.05}
+  .word-lr-company small{display:block;font-size:9pt;font-weight:700;margin-top:3mm}
+  .word-lr-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt}
+  .word-lr-table td,.word-lr-table th{border:1px solid #000;padding:2.2mm 2mm;vertical-align:middle;overflow-wrap:anywhere}
+  .word-lr-table tr:nth-child(1) td,.word-lr-table tr:nth-child(2) td{height:9mm}
+  .word-lr-table tr:nth-child(3) td{height:14mm;vertical-align:top}
+  .word-lr-table tr:nth-child(4) td{height:18mm;vertical-align:top}
+  .word-lr-table tr:nth-child(5) td{height:9mm}
+  .word-lr-table tr:nth-child(6) th{height:11mm;text-align:center}
+  .word-lr-table tr.word-lr-main td{height:22mm;vertical-align:top}
+  .word-lr-table tr.word-lr-detail td{height:24mm;vertical-align:top}
+  .word-lr-table tr.word-lr-notice td{height:31mm;vertical-align:top}
+  .word-lr-table th{font-weight:700}
+  .word-lr-address{font-size:8.5pt}
+  .word-lr-footer{font-size:9pt;padding-top:5mm}
+  .word-lr-footer p{margin:0 0 5mm}
+  .word-lr-signature{text-align:right;font-weight:700;margin:10mm 15mm 7mm 0}
+  .word-lr-driver{display:grid;grid-template-columns:1.3fr 1.3fr 1fr 1.2fr;gap:5mm;margin-top:5mm}
+}
