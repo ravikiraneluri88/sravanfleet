@@ -10,6 +10,21 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <section class="auth-gate" id="authGate" hidden>
+    <div class="auth-card">
+      <img class="auth-logo" src="logo.jpg" alt="Sravan Shipping Services Private Limited logo" />
+      <span class="eyebrow">SECURE OPERATIONS WORKSPACE</span>
+      <h1 id="authTitle">Sign in to RouteLedger</h1>
+      <p id="authIntro">Use your account to access your cloud-synced dispatch records.</p>
+      <form id="authForm">
+        <label class="field"><span>Email address</span><input id="authEmail" type="email" required autocomplete="username" /></label>
+        <label class="field"><span>Password</span><input id="authPassword" type="password" required minlength="8" autocomplete="current-password" /></label>
+        <button class="button button-primary" id="authSubmit" type="submit">Sign in</button>
+      </form>
+      <button class="auth-mode-toggle" id="authModeToggle" type="button">Need an account? Create one</button>
+      <p class="auth-message" id="authMessage" role="status"></p>
+    </div>
+  </section>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
@@ -24,6 +39,7 @@
         <a class="nav-item" data-view="jobs" href="#jobs"><span class="nav-icon">▤</span> Jobs / Routes <span class="nav-count" id="jobsCount">0</span></a>
         <a class="nav-item" data-view="create" href="#create"><span class="nav-icon">＋</span> Create LR</a>
         <a class="nav-item" data-view="history" href="#recent"><span class="nav-icon">↺</span> LR history <span class="nav-count" id="recentCount">0</span></a>
+        <a class="nav-item" data-view="savedLrs" href="#savedLrs"><span class="nav-icon">▣</span> Saved LRs <span class="nav-count" id="savedLrCount">0</span></a>
         <a class="nav-item" data-view="customers" href="#master"><span class="nav-icon">▦</span> Master</a>
         <a class="nav-item" data-view="settings" href="#settings"><span class="nav-icon">⚙</span> Settings</a>
       </nav>
@@ -38,7 +54,7 @@
 
       <div class="sidebar-footer">
         <span class="status-dot"></span>
-        Local workspace
+        <span id="workspaceStatus">Local workspace</span>
         <span class="footer-version">v1.0</span>
       </div>
     </aside>
@@ -54,6 +70,7 @@
           <button class="button button-ghost" id="mainMenuButton" type="button" data-go-view="dashboard">⌂ Main page</button>
           <button class="button button-ghost" id="clearForm" type="button">Clear form</button>
           <button class="button button-primary" id="printButton" type="button"><span>↗</span> Print / PDF</button>
+          <button class="button button-ghost cloud-logout" id="logoutButton" type="button" hidden>Sign out</button>
         </div>
       </header>
 
@@ -338,7 +355,7 @@
         <aside class="preview-column">
           <div class="preview-header">
             <div><span class="live-dot"></span> Live preview</div>
-            <span class="preview-tip">A4 · Print ready</span>
+            <span class="preview-tip">A4 landscape · Print ready</span>
           </div>
           <article class="lr-paper" id="lrPreview">
             <div class="paper-header">
@@ -413,10 +430,17 @@
         <div class="history-toolbar"><input id="historySearch" type="search" placeholder="Search LR number, customer, route or vehicle..." /><select id="historyFilter"><option value="all">All dates</option><option value="month">This month</option></select></div>
         <div class="recent-list" id="recentList"><div class="empty-state">Your generated LRs will appear here.</div></div>
       </section>
+      <section class="view-panel" id="savedLrs" data-panel="savedLrs">
+        <div class="content-panel saved-lrs-panel">
+          <div class="section-heading"><div><span class="eyebrow">PRINT ANYTIME</span><h2>Saved LRs</h2><p class="panel-subtitle">Every generated or saved LR stays here on this device. Print a fresh copy whenever you need it.</p></div></div>
+          <div class="history-toolbar"><input id="savedLrSearch" type="search" placeholder="Search LR number, customer, route or vehicle..." /></div>
+          <div id="savedLrList" class="saved-lr-list"></div>
+        </div>
+      </section>
       <section class="view-panel" id="customers" data-panel="customers"><div class="content-panel"><div class="master-tabs" role="tablist"><button type="button" class="master-tab active" data-master-view="customers">Customers</button><button type="button" class="master-tab" data-master-view="locations">From / To locations</button><button type="button" class="master-tab" data-master-view="fleet">Vehicles & drivers</button><button type="button" class="master-menu-button" data-go-view="dashboard">☰ Menu</button></div><div class="section-heading"><div><span class="eyebrow">MASTER DATA</span><h2>Customers</h2><p class="panel-subtitle">Saved consignors, consignees and billing parties.</p></div><button class="button button-primary" data-open-modal="customerModal" type="button">＋ Add customer</button></div><div class="master-toolbar"><input id="customerSearch" type="search" placeholder="Search customers..." /></div><div id="customerList" class="master-list"></div></div></section>
       <section class="view-panel" id="locations" data-panel="locations"><div class="content-panel"><div class="master-tabs" role="tablist"><button type="button" class="master-tab" data-master-view="customers">Customers</button><button type="button" class="master-tab active" data-master-view="locations">From / To locations</button><button type="button" class="master-tab" data-master-view="fleet">Vehicles & drivers</button><button type="button" class="master-menu-button" data-go-view="dashboard">☰ Menu</button></div><div class="section-heading"><div><span class="eyebrow">MASTER DATA</span><h2>From / To locations</h2><p class="panel-subtitle">Save regular loading, delivery, port and depot locations for quick LR selection.</p></div><button class="button button-primary" data-open-modal="locationModal" type="button">＋ Add location</button></div><div class="master-toolbar"><input id="locationSearch" type="search" placeholder="Search locations..." /></div><div id="locationList" class="master-list"></div></div></section>
       <section class="view-panel" id="fleet" data-panel="fleet"><div class="content-panel"><div class="master-tabs" role="tablist"><button type="button" class="master-tab" data-master-view="customers">Customers</button><button type="button" class="master-tab" data-master-view="locations">From / To locations</button><button type="button" class="master-tab active" data-master-view="fleet">Vehicles & drivers</button><button type="button" class="master-menu-button" data-go-view="dashboard">☰ Menu</button></div><div class="section-heading"><div><span class="eyebrow">MASTER DATA</span><h2>Vehicles & drivers</h2><p class="panel-subtitle">Keep equipment and driver contacts ready for dispatch.</p></div><button class="button button-primary" data-open-modal="vehicleModal" type="button">＋ Add vehicle</button></div><div class="master-toolbar"><input id="vehicleSearch" type="search" placeholder="Search registration, driver or type..." /></div><div id="vehicleList" class="master-list"></div></div></section>
-      <section class="view-panel" id="settings" data-panel="settings"><div class="content-panel settings-panel"><div class="section-heading"><div><span class="eyebrow">WORKSPACE SETTINGS</span><h2>Company profile</h2><p class="panel-subtitle">These details stay on this device and help standardize your documents.</p></div></div><form id="settingsForm" class="settings-form"><label class="field"><span>Company name</span><input id="settingCompany" value="SRAVAN SHIPPING SERVICES PRIVATE LIMITED" /></label><label class="field"><span>Operations contact</span><input id="settingContact" placeholder="Name or team" /></label><label class="field"><span>Phone / email</span><input id="settingContactLine" placeholder="+91 ... · operations@example.com" /></label><label class="field"><span>Default terms note</span><textarea id="settingTerms" rows="3" placeholder="Optional internal note"></textarea></label><button class="button button-primary" type="submit">Save profile</button></form></div></section>
+      <section class="view-panel" id="settings" data-panel="settings"><div class="content-panel settings-panel"><div class="section-heading"><div><span class="eyebrow">WORKSPACE SETTINGS</span><h2>Company profile</h2><p class="panel-subtitle">Manage profile details, cloud connection and a portable copy of your data.</p></div></div><form id="settingsForm" class="settings-form"><label class="field"><span>Company name</span><input id="settingCompany" value="SRAVAN SHIPPING SERVICES PRIVATE LIMITED" /></label><label class="field"><span>Operations contact</span><input id="settingContact" placeholder="Name or team" /></label><label class="field"><span>Phone / email</span><input id="settingContactLine" placeholder="+91 ... · operations@example.com" /></label><label class="field"><span>Default terms note</span><textarea id="settingTerms" rows="3" placeholder="Optional internal note"></textarea></label><button class="button button-primary" type="submit">Save profile</button></form><div class="data-safety-card"><div><strong>Data backup</strong><p>Export a copy before changing devices or enabling cloud sync. Import adds records without deleting existing entries.</p></div><div class="data-safety-actions"><button class="button button-ghost" id="exportDataButton" type="button">Download backup</button><button class="button button-ghost" id="importDataButton" type="button">Import backup</button><input id="importDataFile" type="file" accept="application/json,.json" hidden /></div><small id="cloudSyncStatus">Local storage is active on this browser.</small></div></div></section>
     </main>
   </div>
   <div class="modal-backdrop" id="customerModal" hidden><form class="modal-card" id="customerForm"><button class="modal-close" type="button" data-close-modal>×</button><span class="eyebrow">CUSTOMER MASTER</span><h2 id="customerModalTitle">Add customer</h2><input type="hidden" id="customerId" /><label class="field"><span>Customer / company name *</span><input id="customerName" required /></label><label class="field"><span>GST number</span><input id="customerGst" placeholder="Optional GSTIN" /></label><label class="field"><span>PAN number</span><input id="customerPan" placeholder="Optional PAN" /></label><label class="field"><span>Full address</span><textarea id="customerAddress" rows="3" required></textarea></label><label class="field"><span>Contact</span><input id="customerContact" placeholder="Phone or email" /></label><div class="modal-actions"><button class="button button-ghost" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save customer</button></div></form></div>
@@ -424,6 +448,7 @@
   <div class="modal-backdrop" id="vehicleModal" hidden><form class="modal-card" id="vehicleForm"><button class="modal-close" type="button" data-close-modal>×</button><span class="eyebrow">FLEET MASTER</span><h2 id="vehicleModalTitle">Add vehicle</h2><input type="hidden" id="vehicleId" /><label class="field"><span>Vehicle registration *</span><input id="masterVehicleNumber" required placeholder="MH 04 AB 1234" /></label><label class="field"><span>Equipment type</span><select id="masterVehicleType"><option>Container trailer</option><option>Tank container</option><option>Trailer</option><option>Cargo truck</option></select></label><label class="field"><span>Driver name *</span><input id="masterDriverName" required /></label><label class="field"><span>Driver mobile</span><input id="masterDriverMobile" type="tel" /></label><div class="modal-actions"><button class="button button-ghost" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Save vehicle</button></div></form></div>
   <div class="modal-backdrop" id="jobModal" hidden><form class="modal-card job-modal-card" id="jobForm"><button class="modal-close" type="button" data-close-modal>×</button><span class="eyebrow">JOB MASTER</span><h2>Create dispatch job</h2><label class="field"><span>Job ID</span><input id="jobNumber" readonly /></label><label class="field"><span>Job date *</span><input id="jobDate" type="date" required /></label><label class="field"><span>Consignor / customer *</span><select id="jobConsignor" required><option value="">Select customer</option></select></label><label class="field"><span>Consignee *</span><select id="jobConsignee" required><option value="">Select customer</option></select></label><label class="field"><span>From location *</span><select id="jobPickup" required><option value="">Select location</option></select></label><label class="field"><span>To location *</span><select id="jobDelivery" required><option value="">Select location</option></select></label><label class="field"><span>Movement type *</span><select id="jobMovementType" required><option value="one-way">One way</option><option value="return">Return trip</option></select></label><label class="field"><span>Return location</span><select id="jobReturnLocation"><option value="">Select return location</option></select></label><label class="field"><span>Number of vehicles *</span><input id="jobVehicleCount" type="number" min="1" step="1" required placeholder="e.g. 3" /></label><label class="field"><span>Vehicle type *</span><select id="jobVehicleType" required><option value="">Select vehicle type</option><option value="20ft-container">20 ft container</option><option value="40ft-container">40 ft container</option><option value="20ft-empty-tank">20 ft empty tank</option><option value="20ft-loaded-tank">20 ft loaded tank</option><option value="16tyre-trailer">16 tyre trailer</option><option value="14tyre-trailer">14 tyre trailer</option><option value="truck">Cargo truck</option></select></label><div class="modal-actions"><button class="button button-ghost" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Create job</button></div></form></div>
   <div class="toast" id="toast" role="status"></div>
+  <script src="supabase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

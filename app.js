@@ -8,7 +8,201 @@ const locationKey = "routeledger-locations";
 const vehicleKey = "routeledger-vehicles";
 const settingsKey = "routeledger-settings";
 const jobsKey = "routeledger-jobs";
+const cloudSessionKey = "routeledger-cloud-session";
+const cloudOwnerKey = "routeledger-cloud-owner";
+const cloudQueueKey = "routeledger-cloud-queue";
+const dataKeys = [historyKey, customerKey, locationKey, vehicleKey, settingsKey, jobsKey];
+const cloudConfig = window.ROUTELEDGER_SUPABASE || {};
 let editingLrNumber = "";
+let cloudSession = null;
+let cloudAuthMode = "login";
+
+function cloudIsConfigured() {
+  return Boolean(cloudConfig.url && cloudConfig.anonKey);
+}
+
+function setCloudStatus(message, isError = false) {
+  const status = document.getElementById("cloudSyncStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("error", isError);
+}
+
+function readCloudQueue() {
+  return JSON.parse(localStorage.getItem(cloudQueueKey) || "{}");
+}
+
+function queueCloudKey(userId, key) {
+  if (!userId) return;
+  const queue = readCloudQueue();
+  queue[userId] = [...new Set([...(queue[userId] || []), key])];
+  localStorage.setItem(cloudQueueKey, JSON.stringify(queue));
+}
+
+function cloudHeaders(includeAuth = true) {
+  const headers = { apikey: cloudConfig.anonKey, "Content-Type": "application/json" };
+  if (includeAuth && cloudSession?.access_token) headers.Authorization = `Bearer ${cloudSession.access_token}`;
+  return headers;
+}
+
+async function cloudRequest(path, options = {}, includeAuth = true) {
+  const response = await fetch(`${cloudConfig.url.replace(/\/$/, "")}${path}`, {
+    ...options,
+    headers: { ...cloudHeaders(includeAuth), ...(options.headers || {}) }
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    let message = body;
+    try { message = JSON.parse(body).msg || JSON.parse(body).message || JSON.parse(body).error_description || body; } catch {}
+    throw new Error(message || `Cloud request failed (${response.status})`);
+  }
+  return body ? JSON.parse(body) : null;
+}
+
+async function saveCloudDataset(key, payload) {
+  if (!cloudSession?.user?.id) return;
+  const userId = cloudSession.user.id;
+  queueCloudKey(userId, key);
+  try {
+    await cloudRequest("/rest/v1/routeledger_data?on_conflict=owner_id%2Cdata_key", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ owner_id: userId, data_key: key, payload, updated_at: new Date().toISOString() })
+    });
+    const queue = readCloudQueue();
+    queue[userId] = (queue[userId] || []).filter((queuedKey) => queuedKey !== key);
+    if (!queue[userId].length) delete queue[userId];
+    localStorage.setItem(cloudQueueKey, JSON.stringify(queue));
+    setCloudStatus(`Cloud sync active · last saved ${new Date().toLocaleTimeString()}`);
+  } catch (error) {
+    setCloudStatus(`Cloud sync pending: ${error.message}. Data is still saved in this browser.`, true);
+  }
+}
+
+function datasetIdentity(key, item) {
+  if (key === historyKey) return item.lrNumber;
+  if (key === customerKey || key === locationKey) return item.id || item.name;
+  if (key === vehicleKey) return item.id || item.number;
+  if (key === jobsKey) return item.id;
+  return null;
+}
+
+function mergeDataset(key, primary, secondary) {
+  if (key === settingsKey) return { ...(secondary || {}), ...(primary || {}) };
+  const values = new Map();
+  [...(secondary || []), ...(primary || [])].forEach((item) => {
+    const identity = datasetIdentity(key, item);
+    if (identity) values.set(String(identity), item);
+  });
+  return [...values.values()];
+}
+
+async function hydrateCloudData() {
+  const userId = cloudSession.user.id;
+  const previousOwner = localStorage.getItem(cloudOwnerKey);
+  const sameAccount = !previousOwner || previousOwner === userId;
+  const rows = await cloudRequest("/rest/v1/routeledger_data?select=data_key,payload");
+  const remote = Object.fromEntries(rows.map((row) => [row.data_key, row.payload]));
+  const queuedForUser = readCloudQueue()[userId] || [];
+  const migrated = [];
+  dataKeys.forEach((key) => {
+    const local = JSON.parse(localStorage.getItem(key) || (key === settingsKey ? "{}" : "[]"));
+    const hasLocal = key === settingsKey ? Object.keys(local).length > 0 : local.length > 0;
+    const hasRemote = Object.prototype.hasOwnProperty.call(remote, key);
+    let result;
+    if (!sameAccount) result = hasRemote ? remote[key] : (key === settingsKey ? {} : []);
+    else if (!previousOwner || queuedForUser.includes(key) || !hasRemote) result = mergeDataset(key, local, remote[key]);
+    else result = remote[key];
+    localStorage.setItem(key, JSON.stringify(result));
+    if (sameAccount && hasLocal && (!previousOwner || !hasRemote || queuedForUser.includes(key))) migrated.push(key);
+  });
+  localStorage.setItem(cloudOwnerKey, userId);
+  const settings = JSON.parse(localStorage.getItem(settingsKey) || "{}");
+  Object.keys(settings).forEach((id) => { const input = document.getElementById(id); if (input) input.value = settings[id]; });
+  renderCustomers();
+  renderLocations();
+  populateJobOptions();
+  renderHistory();
+  renderDashboard();
+  const queued = [...new Set([...queuedForUser, ...migrated])];
+  if (queued.length) {
+    setCloudStatus("Migrating saved browser data to your secured cloud account…");
+    for (const key of queued) await saveCloudDataset(key, JSON.parse(localStorage.getItem(key) || "null"));
+  }
+  setCloudStatus(`Cloud sync active · signed in as ${cloudSession.user.email || "account"}`);
+}
+
+async function authRequest(path, payload, authToken) {
+  const headers = cloudHeaders(false);
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const response = await fetch(`${cloudConfig.url.replace(/\/$/, "")}/auth/v1/${path}`, {
+    method: "POST", headers, body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.msg || result.message || result.error_description || "Authentication failed");
+  return result;
+}
+
+async function establishCloudSession(session) {
+  cloudSession = session;
+  localStorage.setItem(cloudSessionKey, JSON.stringify(session));
+  try {
+    await hydrateCloudData();
+    document.body.classList.add("cloud-authenticated");
+    document.body.classList.remove("cloud-auth-required");
+    document.getElementById("authGate").hidden = true;
+    document.getElementById("logoutButton").hidden = false;
+    document.getElementById("workspaceStatus").textContent = "Cloud workspace";
+  } catch (error) {
+    cloudSession = null;
+    localStorage.removeItem(cloudSessionKey);
+    document.body.classList.remove("cloud-authenticated");
+    document.body.classList.add("cloud-auth-required");
+    document.getElementById("authGate").hidden = false;
+    document.getElementById("logoutButton").hidden = true;
+    setAuthMessage(`Could not load protected cloud data: ${error.message}`);
+    setCloudStatus(`Cloud connection failed: ${error.message}`, true);
+  }
+}
+
+function setAuthMessage(message, isError = true) {
+  const output = document.getElementById("authMessage");
+  output.textContent = message;
+  output.classList.toggle("error", isError);
+}
+
+function setAuthMode(mode) {
+  cloudAuthMode = mode;
+  const signup = mode === "signup";
+  document.getElementById("authTitle").textContent = signup ? "Create your account" : "Sign in to RouteLedger";
+  document.getElementById("authIntro").textContent = signup ? "Create a secure account for your cloud-synced dispatch records." : "Use your account to access your cloud-synced dispatch records.";
+  document.getElementById("authSubmit").textContent = signup ? "Create account" : "Sign in";
+  document.getElementById("authPassword").autocomplete = signup ? "new-password" : "current-password";
+  document.getElementById("authModeToggle").textContent = signup ? "Already have an account? Sign in" : "Need an account? Create one";
+  setAuthMessage("");
+}
+
+async function startCloudMode() {
+  if (!cloudConfig.url && !cloudConfig.anonKey) {
+    setCloudStatus("Local storage is active on this browser. Configure Supabase to enable login and cloud sync.");
+    return;
+  }
+  document.body.classList.add("cloud-auth-required");
+  document.getElementById("authGate").hidden = false;
+  if (!cloudIsConfigured()) {
+    setAuthMessage("Cloud setup is incomplete. Add the Supabase project URL and anon key to supabase-config.js.");
+    return;
+  }
+  const stored = JSON.parse(localStorage.getItem(cloudSessionKey) || "null");
+  if (!stored?.access_token) return;
+  try {
+    const refreshed = await authRequest("token?grant_type=refresh_token", { refresh_token: stored.refresh_token });
+    await establishCloudSession(refreshed);
+  } catch {
+    localStorage.removeItem(cloudSessionKey);
+    setAuthMessage("Your saved sign-in expired. Please sign in again.", false);
+  }
+}
 
 const equipmentNames = {
   "20ft-container": "20 ft container",
@@ -43,11 +237,12 @@ function escapeHtml(value) {
 }
 
 function readStore(key) {
-  return JSON.parse(localStorage.getItem(key) || "[]");
+  return JSON.parse(localStorage.getItem(key) || (key === settingsKey ? "{}" : "[]"));
 }
 
 function writeStore(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+  if (cloudSession) void saveCloudDataset(key, value);
 }
 
 function getFormData() {
@@ -194,6 +389,7 @@ function makeLrNumber() {
 function renderHistory() {
   const history = readStore(historyKey);
   document.getElementById("recentCount").textContent = history.length;
+  document.getElementById("savedLrCount").textContent = history.length;
   const list = document.getElementById("recentList");
   const query = (document.getElementById("historySearch")?.value || "").toLowerCase().trim();
   const filter = document.getElementById("historyFilter")?.value || "all";
@@ -212,16 +408,32 @@ function renderHistory() {
         <div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong></div>
         <div><small>EQUIPMENT</small><strong>${escapeHtml(equipmentNames[item.equipment] || item.equipment)}</strong></div>
         <div><small>CREATED</small><strong>${formatDate(item.lrDate)}</strong></div>
-        <div class="history-actions"><button type="button" data-edit-history-lr="${escapeHtml(item.lrNumber)}">Edit</button><button type="button" data-history-lr="${escapeHtml(item.lrNumber)}">Load</button></div>
+        <div class="history-actions"><button type="button" data-edit-history-lr="${escapeHtml(item.lrNumber)}">Edit</button><button type="button" data-history-lr="${escapeHtml(item.lrNumber)}">Load</button><button type="button" data-print-history-lr="${escapeHtml(item.lrNumber)}">Print</button></div>
       </div>`).join("");
   }
   renderDashboard(history);
+  renderSavedLrs(history);
+}
+
+function renderSavedLrs(history = readStore(historyKey)) {
+  const query = (document.getElementById("savedLrSearch")?.value || "").toLowerCase().trim();
+  const visible = history.filter((item) =>
+    [item.lrNumber, item.consignor, item.consignee, item.pickup, item.delivery, item.vehicleNumber]
+      .join(" ").toLowerCase().includes(query));
+  document.getElementById("savedLrList").innerHTML = visible.map((item) => `
+    <article class="saved-lr-row">
+      <div class="saved-lr-number"><small>LR NUMBER · ${escapeHtml(formatDate(item.lrDate))}</small><strong>${escapeHtml(item.lrNumber)}</strong></div>
+      <div><small>PARTIES</small><strong>${escapeHtml(item.consignor || "—")} → ${escapeHtml(item.consignee || "—")}</strong></div>
+      <div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong></div>
+      <div><small>VEHICLE</small><strong>${escapeHtml(item.vehicleNumber || "Not entered")}</strong></div>
+      <div class="saved-lr-actions"><button type="button" data-load-saved-lr="${escapeHtml(item.lrNumber)}">Open</button><button class="button-primary" type="button" data-print-history-lr="${escapeHtml(item.lrNumber)}">Print / PDF</button></div>
+    </article>`).join("") || '<div class="empty-state">No saved LRs match your search. Generated receipts will be available here for reprinting.</div>';
 }
 
 function saveHistory(data) {
   const history = readStore(historyKey);
   const updated = [data, ...history.filter((item) => item.lrNumber !== data.lrNumber)].slice(0, 100);
-  localStorage.setItem(historyKey, JSON.stringify(updated));
+  writeStore(historyKey, updated);
   renderHistory();
 }
 
@@ -233,7 +445,7 @@ function renderDashboard(history = readStore(historyKey)) {
   document.getElementById("kpiFleet").textContent = readStore(vehicleKey).length;
   const target = document.getElementById("dashboardRecent");
   if (!target) return;
-  target.innerHTML = history.slice(0, 4).map((item) => `<div class="compact-row"><div><small>LR NUMBER</small><strong>${escapeHtml(item.lrNumber)}</strong></div><div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong></div><div class="history-actions"><button type="button" data-edit-history-lr="${escapeHtml(item.lrNumber)}">Edit</button><button type="button" data-history-lr="${escapeHtml(item.lrNumber)}">Load</button></div></div>`).join("") || '<div class="empty-state">No dispatches yet. Create your first LR to see activity here.</div>';
+  target.innerHTML = history.slice(0, 4).map((item) => `<div class="compact-row"><div><small>LR NUMBER</small><strong>${escapeHtml(item.lrNumber)}</strong></div><div><small>ROUTE</small><strong>${escapeHtml(item.pickup || "—")} → ${escapeHtml(item.delivery || "—")}</strong></div><div class="history-actions"><button type="button" data-edit-history-lr="${escapeHtml(item.lrNumber)}">Edit</button><button type="button" data-history-lr="${escapeHtml(item.lrNumber)}">Load</button><button type="button" data-print-history-lr="${escapeHtml(item.lrNumber)}">Print</button></div></div>`).join("") || '<div class="empty-state">No dispatches yet. Create your first LR to see activity here.</div>';
   const jobs = readStore(jobsKey);
   const dashboardJobs = document.getElementById("dashboardJobs");
   dashboardJobs.innerHTML = jobs.slice(0, 4).map((job) => {
@@ -357,7 +569,7 @@ function activateView(view) {
   if (["customers", "locations", "fleet"].includes(view)) {
     document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === "customers"));
   }
-  const copy = { dashboard: ["Operations overview", "A clear view of dispatch activity, customers and fleet readiness."], jobs: ["Jobs / Routes", "Plan, filter and review dispatch jobs created from your LRs."], create: ["Create lorry receipt", "Capture the trip, vehicle and cargo details in one dispatch-ready document."], history: ["LR history", "Search, review and reload previously generated receipts."], customers: ["Customers", "Manage the parties your operations team works with every day."], locations: ["From / To locations", "Manage saved loading, delivery, port and depot locations."], fleet: ["Vehicles & drivers", "Keep equipment and driver contacts ready for dispatch."], settings: ["Company profile", "Manage local workspace preferences and document defaults."] }[view] || null;
+  const copy = { dashboard: ["Operations overview", "A clear view of dispatch activity, customers and fleet readiness."], jobs: ["Jobs / Routes", "Plan, filter and review dispatch jobs created from your LRs."], create: ["Create lorry receipt", "Capture the trip, vehicle and cargo details in one dispatch-ready document."], history: ["LR history", "Search, review and reload previously generated receipts."], savedLrs: ["Saved LRs", "Open or print any previously generated lorry receipt."], customers: ["Customers", "Manage the parties your operations team works with every day."], locations: ["From / To locations", "Manage saved loading, delivery, port and depot locations."], fleet: ["Vehicles & drivers", "Keep equipment and driver contacts ready for dispatch."], settings: ["Company profile", "Manage local workspace preferences and document defaults."] }[view] || null;
   if (copy) { document.getElementById("pageTitle").textContent = copy[0]; document.getElementById("pageIntro").textContent = copy[1]; }
   if (view === "customers") renderCustomers();
   if (view === "locations") renderLocations();
@@ -416,16 +628,38 @@ form.addEventListener("submit", (event) => {
 });
 
 function printCurrentLr() {
+  window.pendingPrintReturnView = document.querySelector("[data-panel].active-view")?.dataset.panel || "dashboard";
+  activateView("create");
   if (!form.reportValidity()) {
     showToast("Complete the required fields before printing");
     return false;
   }
   const data = getFormData();
-  if (!validateJobCapacity(data)) return false;
+  const alreadySaved = readStore(historyKey).some((item) => item.lrNumber === data.lrNumber);
+  if (!alreadySaved && !validateJobCapacity(data)) return false;
   saveHistory(data);
   renderPrintBatch(data);
+  document.body.classList.add("printing-lr");
+  document.getElementById("printBatch").getBoundingClientRect();
   window.print();
   return true;
+}
+
+window.addEventListener("afterprint", () => {
+  document.body.classList.remove("printing-lr");
+  const returnView = window.pendingPrintReturnView || "dashboard";
+  window.pendingPrintReturnView = "";
+  activateView(returnView);
+});
+
+function printSavedLr(lrNumber) {
+  const data = readStore(historyKey).find((item) => item.lrNumber === lrNumber);
+  if (!data) {
+    showToast("That saved LR could not be found");
+    return;
+  }
+  loadData(data);
+  printCurrentLr();
 }
 
 document.getElementById("printButton").addEventListener("click", printCurrentLr);
@@ -466,12 +700,17 @@ document.getElementById("cancelLrButton").addEventListener("click", () => {
 });
 
 document.getElementById("clearHistory").addEventListener("click", () => {
-  localStorage.removeItem(historyKey);
+  writeStore(historyKey, []);
   renderHistory();
   showToast("Recent LR history cleared");
 });
 
 document.getElementById("recentList").addEventListener("click", (event) => {
+  const printButton = event.target.closest("[data-print-history-lr]");
+  if (printButton) {
+    printSavedLr(printButton.dataset.printHistoryLr);
+    return;
+  }
   const editButton = event.target.closest("[data-edit-history-lr]");
   if (editButton) {
     const item = readStore(historyKey).find((entry) => entry.lrNumber === editButton.dataset.editHistoryLr);
@@ -483,6 +722,19 @@ document.getElementById("recentList").addEventListener("click", (event) => {
   const history = readStore(historyKey);
   const item = history.find((entry) => entry.lrNumber === button.dataset.historyLr);
   if (item) { activateView("create"); loadData(item); }
+});
+
+document.getElementById("savedLrList").addEventListener("click", (event) => {
+  const printButton = event.target.closest("[data-print-history-lr]");
+  if (printButton) {
+    printSavedLr(printButton.dataset.printHistoryLr);
+    return;
+  }
+  const loadButton = event.target.closest("[data-load-saved-lr]");
+  if (loadButton) {
+    const item = readStore(historyKey).find((entry) => entry.lrNumber === loadButton.dataset.loadSavedLr);
+    if (item) { activateView("create"); loadData(item); }
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -503,6 +755,11 @@ document.addEventListener("click", (event) => {
 });
 
 document.getElementById("dashboardRecent").addEventListener("click", (event) => {
+  const printButton = event.target.closest("[data-print-history-lr]");
+  if (printButton) {
+    printSavedLr(printButton.dataset.printHistoryLr);
+    return;
+  }
   const editButton = event.target.closest("[data-edit-history-lr]");
   if (editButton) {
     const item = readStore(historyKey).find((entry) => entry.lrNumber === editButton.dataset.editHistoryLr);
@@ -517,6 +774,7 @@ document.getElementById("dashboardRecent").addEventListener("click", (event) => 
 
 document.getElementById("historySearch").addEventListener("input", renderHistory);
 document.getElementById("historyFilter").addEventListener("change", renderHistory);
+document.getElementById("savedLrSearch").addEventListener("input", () => renderSavedLrs());
 ["jobsStartDate", "jobsEndDate", "jobsStatus"].forEach((id) => document.getElementById(id).addEventListener("input", renderJobs));
 document.getElementById("clearJobsFilters").addEventListener("click", () => {
   document.getElementById("jobsStartDate").value = "";
@@ -655,13 +913,61 @@ document.getElementById("locationList").addEventListener("click", (event) => {
   }
 });
 
+function exportLocalBackup() {
+  const backup = {
+    format: "routeledger-backup",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: Object.fromEntries(dataKeys.map((key) => [key, readStore(key)]))
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `routeledger-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast("Backup downloaded");
+}
+
+async function importLocalBackup(file) {
+  let backup;
+  try {
+    backup = JSON.parse(await file.text());
+  } catch {
+    throw new Error("This file is not valid JSON.");
+  }
+  if (backup.format !== "routeledger-backup" || !backup.data || typeof backup.data !== "object") {
+    throw new Error("This is not a RouteLedger backup file.");
+  }
+  const imported = [];
+  for (const key of dataKeys) {
+    if (!(key in backup.data)) continue;
+    const value = backup.data[key];
+    if (key === settingsKey ? (!value || typeof value !== "object" || Array.isArray(value)) : !Array.isArray(value)) {
+      throw new Error(`The backup contains invalid data for ${key}.`);
+    }
+    imported.push([key, value]);
+  }
+  if (!imported.length) throw new Error("The backup contains no supported RouteLedger data.");
+  for (const [key, value] of imported) {
+    const merged = mergeDataset(key, value, readStore(key));
+    writeStore(key, merged);
+  }
+  renderCustomers();
+  renderLocations();
+  populateJobOptions();
+  renderHistory();
+  renderDashboard();
+  showToast("Backup imported and merged with existing records");
+}
+
 const storedSettings = JSON.parse(localStorage.getItem(settingsKey) || "null");
 if (storedSettings) Object.keys(storedSettings).forEach((id) => { const input = document.getElementById(id); if (input) input.value = storedSettings[id]; });
 document.getElementById("settingsForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const settings = { settingCompany: document.getElementById("settingCompany").value.trim(), settingContact: document.getElementById("settingContact").value.trim(), settingContactLine: document.getElementById("settingContactLine").value.trim(), settingTerms: document.getElementById("settingTerms").value.trim() };
-  localStorage.setItem(settingsKey, JSON.stringify(settings));
-  showToast("Company profile saved locally");
+  writeStore(settingsKey, settings);
+  showToast(cloudSession ? "Company profile saved and syncing" : "Company profile saved locally");
 });
 
 window.addEventListener("hashchange", () => activateView(window.location.hash.replace("#", "") === "recent" ? "history" : (window.location.hash.replace("#", "") || "dashboard")));
@@ -671,3 +977,67 @@ populateJobOptions();
 updatePreview();
 renderHistory();
 activateView(window.location.hash.replace("#", "") === "recent" ? "history" : (window.location.hash.replace("#", "") || "dashboard"));
+
+document.getElementById("exportDataButton").addEventListener("click", exportLocalBackup);
+document.getElementById("importDataButton").addEventListener("click", () => document.getElementById("importDataFile").click());
+document.getElementById("importDataFile").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  try {
+    await importLocalBackup(file);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+document.getElementById("authModeToggle").addEventListener("click", () => setAuthMode(cloudAuthMode === "login" ? "signup" : "login"));
+document.getElementById("authForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!cloudIsConfigured()) {
+    setAuthMessage("Cloud setup is incomplete. Configure the Supabase URL and anon key first.");
+    return;
+  }
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const submit = document.getElementById("authSubmit");
+  submit.disabled = true;
+  submit.textContent = cloudAuthMode === "signup" ? "Creating account…" : "Signing in…";
+  try {
+    const result = cloudAuthMode === "signup"
+      ? await authRequest("signup", { email, password })
+      : await authRequest("token?grant_type=password", { email, password });
+    if (!result.access_token || !result.user) {
+      setAuthMessage("Check your email to confirm the new account, then return here to sign in.", false);
+    } else {
+      await establishCloudSession(result);
+    }
+  } catch (error) {
+    setAuthMessage(error.message);
+  } finally {
+    submit.disabled = false;
+    submit.textContent = cloudAuthMode === "signup" ? "Create account" : "Sign in";
+  }
+});
+
+document.getElementById("logoutButton").addEventListener("click", async () => {
+  const session = cloudSession;
+  cloudSession = null;
+  localStorage.removeItem(cloudSessionKey);
+  document.body.classList.remove("cloud-authenticated");
+  document.body.classList.add("cloud-auth-required");
+  document.getElementById("authGate").hidden = false;
+  document.getElementById("logoutButton").hidden = true;
+  document.getElementById("workspaceStatus").textContent = "Local workspace";
+  setAuthMessage("");
+  setCloudStatus("Signed out. This browser's data remains saved.");
+  if (session?.access_token) {
+    try {
+      await authRequest("logout", {}, session.access_token);
+    } catch (error) {
+      setCloudStatus(`Signed out locally, but remote sign-out failed: ${error.message}`, true);
+    }
+  }
+});
+
+void startCloudMode();
